@@ -35,4 +35,9 @@ typedef struct registers {
 void fde_cycle(void);
 
 
+/*
+ *  Opcodes
+ */
+void SYS_addr(unsigned short addr);
+
 #endif
