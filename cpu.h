@@ -10,6 +10,12 @@
 #define PROGRAM_START        0x0200
 #define FLAG_REG             15
 #define MAX_INTEGER_8BIT     255
+#define WIDTH                64
+#define HEIGHT               32
+
+
+uint16_t stack[16];   // Stack used to store the return addresses from subroutines
+extern uint16_t memory[4096];   // CHIP-8 has 4KB of RAM
 
 
 /*
@@ -23,18 +29,6 @@ typedef struct registers {
 	uint16_t pc;   // program counter
 	uint16_t sp;   // stack pointer
 } Chip8;
-
-
-/*
- *  Stack used to store the return addresses from subroutines
- */
- uint16_t stack[16];
-
-
-/*
- *  Memory - CHIP-8 has 4KB of RAM 
- */
-unsigned char memory[4096];
 
 
 void fde_cycle(Chip8 * cpu_reg);
