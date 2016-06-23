@@ -2,6 +2,11 @@
 #include "cpu.h"
 
 
+static uint16_t stack[16];   // Stack used to store the return addresses from subroutines
+static uint16_t delay_timer;   // Used for timeing of game events
+static uint16_t sound_timer;   // Used for sound effects; beeps when nonzero
+
+
 /*
  *	fde_cycle()
  *	Inputs: cpu_reg - Pointer to CPU register struct
@@ -10,7 +15,7 @@
  */
 void fde_cycle(Chip8 * cpu_reg) {
 	// Fetch
-	uint16_t opcode = 0x0000;  // change this later - need to read 2 consecutive bytes
+	uint16_t opcode = (memory[cpu_reg->pc] << 8) | memory[cpu_reg->pc+1];  // read 2 consecutive bytes
 
 	// Decode the opcode and execute it by calling its function
 	switch(opcode & 0xF000) {
@@ -192,6 +197,7 @@ void SYS_addr(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void CLS(uint16_t opcode, Chip8 * cpu_reg) {
 	// clear the display
+	cpu_reg->pc += 2;
 }
 
 
@@ -216,7 +222,7 @@ void JP_addr(uint16_t opcode, Chip8 * cpu_reg) {
  *  0x2NNN - Call subroutine at NNN
  */
 void CALL_addr(uint16_t opcode, Chip8 * cpu_reg) {
-	stack[cpu_reg->sp] = cpu_reg->pc;
+	stack[cpu_reg->sp] = cpu_reg->pc;  // push current addr onto stack
 	cpu_reg->sp++;
 	cpu_reg->pc = opcode & 0x0FFF;
 }
@@ -230,6 +236,8 @@ void SE_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 
 	if (cpu_reg->V[X] == (opcode & 0x00FF))
 		cpu_reg->pc += 2;
+
+	cpu_reg->pc += 2;
 }
 
 
@@ -241,6 +249,8 @@ void SNE_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 
  	if (cpu_reg->V[X] != (opcode & 0x00FF))
  		cpu_reg->pc += 2;
+
+ 	cpu_reg->pc += 2;
  }
 
 
@@ -253,6 +263,8 @@ void SE_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 
 	if (cpu_reg->V[X] == cpu_reg->V[Y])
 		cpu_reg->pc += 2;
+
+	cpu_reg->pc += 2;
 }
 
 
@@ -262,6 +274,7 @@ void SE_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 void LD_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 	uint32_t X = (opcode & 0x0F00) >> 8;
 	cpu_reg->V[X] = (opcode & 0x00FF);
+	cpu_reg->pc += 2;
 }
 
 
@@ -271,6 +284,7 @@ void LD_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 void ADD_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 	uint32_t X = (opcode & 0x0F00) >> 8;
 	cpu_reg->V[X] += (opcode & 0x00FF);
+	cpu_reg->pc += 2;
 }
 
 
@@ -281,6 +295,7 @@ void LD_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
  	uint32_t X = (opcode & 0x0F00) >> 8;
  	uint32_t Y = (opcode & 0x00F0) >> 4;
  	cpu_reg->V[X] = cpu_reg->V[Y];
+ 	cpu_reg->pc += 2;
 }
 
 
@@ -291,6 +306,7 @@ void OR_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 	uint32_t X = (opcode & 0x0F00) >> 8;
 	uint32_t Y = (opcode & 0x00F0) >> 4;
 	cpu_reg->V[X] = cpu_reg->V[X] | cpu_reg->V[Y];
+	cpu_reg->pc += 2;
 }
 
 
@@ -301,6 +317,7 @@ void AND_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
   	uint32_t X = (opcode & 0x0F00) >> 8;
  	uint32_t Y = (opcode & 0x00F0) >> 4;
  	cpu_reg->V[X] = cpu_reg->V[X] & cpu_reg->V[Y];
+ 	cpu_reg->pc += 2;
 }
 
 
@@ -311,6 +328,7 @@ void XOR_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
  	uint32_t X = (opcode & 0x0F00) >> 8;
  	uint32_t Y = (opcode & 0x00F0) >> 4;
  	cpu_reg->V[X] = cpu_reg->V[X] ^ cpu_reg->V[Y];
+ 	cpu_reg->pc += 2;
 }
 
 
@@ -328,6 +346,7 @@ void ADD_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
  		cpu_reg->V[FLAG_REG] = 0;
 
  	cpu_reg->V[X] = cpu_reg->V[X] + cpu_reg->V[Y];
+ 	cpu_reg->pc += 2;
 }
 
 
@@ -345,6 +364,7 @@ void SUB_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 		cpu_reg->V[FLAG_REG] = 0;
 
 	cpu_reg->V[X] = cpu_reg->V[X] - cpu_reg->V[Y];
+	cpu_reg->pc += 2;
 }
 
 
@@ -358,6 +378,7 @@ void SHR_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 	cpu_reg->V[FLAG_REG] = (cpu_reg->V[X] & 0x1);
 
 	cpu_reg->V[X] = cpu_reg->V[X] >> 1;
+	cpu_reg->pc += 2;
 }
 
 
@@ -375,6 +396,7 @@ void SUBN_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 		cpu_reg->V[FLAG_REG] = 0;
 
 	cpu_reg->V[X] = cpu_reg->V[Y] - cpu_reg->V[X];
+	cpu_reg->pc += 2;
 }
 
 
@@ -388,6 +410,7 @@ void SHL_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 	cpu_reg->V[FLAG_REG] = (cpu_reg->V[X] & 0x8) >> 7;
 
 	cpu_reg->V[X] = cpu_reg->V[X] << 1;
+	cpu_reg->pc += 2;
 }
 
 
@@ -400,6 +423,8 @@ void SNE_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
 
 	if (cpu_reg->V[X] != cpu_reg->V[Y])
 		cpu_reg->pc += 2;
+
+	cpu_reg->pc += 2;
 }
 
 
@@ -408,6 +433,7 @@ void SNE_VX_VY(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_I_addr(uint16_t opcode, Chip8 * cpu_reg) {
 	cpu_reg->I = (opcode & 0x0FFF);
+	cpu_reg->pc += 2;
 }
 
 
@@ -427,6 +453,7 @@ void RND_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
 	uint32_t random = rand() % 256;   // generate a random number from 0 to 255
 
 	cpu_reg->V[X] = random & (opcode & 0x00FF);
+	cpu_reg->pc += 2;
 }
 
 
@@ -435,6 +462,7 @@ void RND_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void DRW_VX_VY_nibble(uint16_t opcode, Chip8 * cpu_reg) {
 	// draw sprites
+	cpu_reg->pc += 2;
 }
 
 
@@ -443,6 +471,7 @@ void DRW_VX_VY_nibble(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void SKP_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// key if key pressed is same as VX
+	cpu_reg->pc += 2;
 }
 
 
@@ -451,6 +480,7 @@ void SKP_VX(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void SKNP_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// key if key not pressed is same as VX
+	cpu_reg->pc += 2;
 }
 
 
@@ -458,7 +488,9 @@ void SKNP_VX(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xFX07 - Set VX = delay timer value
  */
 void LD_VX_DT(uint16_t opcode, Chip8 * cpu_reg) {
-	// set VX = DT
+	uint32_t X = (opcode & 0x0F00) >> 8;
+	cpu_reg->V[X] = delay_timer;
+	cpu_reg->pc += 2;
 }
 
 
@@ -467,6 +499,7 @@ void LD_VX_DT(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_VX_K(uint16_t opcode, Chip8 * cpu_reg) {
 	// loop while waiting for key press, then continue
+	cpu_reg->pc += 2;
 }
 
 
@@ -474,7 +507,9 @@ void LD_VX_K(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xFX15 - Set delay timer = VX
  */
 void LD_DT_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// set DT = VX
+	uint32_t X = (opcode & 0x0F00) >> 8;
+	delay_timer = cpu_reg->V[X];
+	cpu_reg->pc += 2;
 }
 
 
@@ -483,6 +518,9 @@ void LD_DT_VX(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_ST_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// set ST = VX
+	uint32_t X = (opcode & 0x0F00) >> 8;
+	sound_timer = cpu_reg->V[X];
+	cpu_reg->pc += 2;
 }
 
 
@@ -492,6 +530,7 @@ void LD_ST_VX(uint16_t opcode, Chip8 * cpu_reg) {
 void ADD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	uint32_t X = (opcode & 0x0F00) >> 8;
 	cpu_reg->I += cpu_reg->V[X];
+	cpu_reg->pc += 2;
 }
 
 
@@ -500,6 +539,7 @@ void ADD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_F_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// the value I is set to the location for the hex sprite corresponding to val of VX
+	cpu_reg->pc += 2;
 }
 
 
@@ -509,6 +549,7 @@ void LD_F_VX(uint16_t opcode, Chip8 * cpu_reg) {
 void LD_B_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// take decimal value of VX and store its hundreds digit at mem. loc. I,
 	// its tens digit at I+1, and its ones digit at I+2
+	cpu_reg->pc += 2;
 }
 
 
@@ -517,6 +558,7 @@ void LD_B_VX(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
 	// copy values V0-VX into memory starting at location I
+	cpu_reg->pc += 2;
 }
 
 
@@ -525,5 +567,6 @@ void LD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
  */
 void LD_VX_I(uint16_t opcode, Chip8 * cpu_reg) {
 	// read values from memory starting at location I into V0-VX
+	cpu_reg->pc += 2;
 }
 

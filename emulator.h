@@ -2,7 +2,7 @@
 #define _EMULATOR_H_
 
 
-void load_program(const char *filename, void *mem_loc);
-
+int load_program(const char *filename, uint8_t *mem_loc);
+void hex_dump_ROM(int file_size);
 
 #endif

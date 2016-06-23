@@ -14,8 +14,7 @@
 #define HEIGHT               32
 
 
-uint16_t stack[16];   // Stack used to store the return addresses from subroutines
-extern uint16_t memory[4096];   // CHIP-8 has 4KB of RAM
+extern uint8_t memory[4096];   // CHIP-8 has 4KB of RAM
 
 
 /*
