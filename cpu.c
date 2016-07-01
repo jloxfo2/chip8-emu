@@ -8,6 +8,29 @@ static uint16_t sound_timer;   // Used for sound effects; beeps when nonzero
 
 
 /*
+ *  Hexadecimal sprite fonts (16 total digits, each 5 bytes long)
+ */
+static uint8_t fonts[80] = {
+	0xF0,0x90,0x90,0x90,0xF0,  // '0'
+	0x20,0x60,0x20,0x20,0x70,  // '1'
+	0xF0,0x10,0xF0,0x80,0xF0,  // '2'
+	0xF0,0x10,0xF0,0x10,0xF0,  // '3'
+	0x90,0x90,0xF0,0x10,0x10,  // '4'
+	0xF0,0x10,0x20,0x40,0x40,  // '5'
+	0xF0,0x80,0xF0,0x90,0xF0,  // '6'
+	0xF0,0x10,0x20,0x40,0x40,  // '7'
+	0xF0,0x90,0xF0,0x90,0xF0,  // '8'
+	0xF0,0x90,0xE0,0x90,0xE0,  // '9'
+	0xF0,0x90,0xF0,0x90,0x90,  // 'A'
+	0xE0,0x90,0xE0,0x90,0xE0,  // 'B'
+	0xF0,0x80,0x80,0x80,0xF0,  // 'C'
+	0xE0,0x90,0x90,0x90,0xE0,  // 'D'
+	0xF0,0x80,0xF0,0x80,0xF0,  // 'E'
+	0xF0,0x80,0xF0,0x80,0xF0   // 'F'
+};
+
+
+/*
  *	fde_cycle()
  *	Inputs: cpu_reg - Pointer to CPU register struct
  *	Return Value: None
@@ -16,11 +39,11 @@ static uint16_t sound_timer;   // Used for sound effects; beeps when nonzero
 void fde_cycle(Chip8 * cpu_reg) {
 	// Fetch
 	uint16_t opcode = (memory[cpu_reg->pc] << 8) | memory[cpu_reg->pc+1];  // read 2 consecutive bytes
-
+	debugger(cpu_reg, opcode);
 	// Decode the opcode and execute it by calling its function
 	switch(opcode & 0xF000) {
 	case 0x0000:
-		// another switch case here - check lowest 8-bits
+		// check lowest 8-bits
 		switch(opcode & 0x00FF) {
 		case 0x00E0:
 			CLS(opcode, cpu_reg);
@@ -55,7 +78,7 @@ void fde_cycle(Chip8 * cpu_reg) {
 		ADD_VX_byte(opcode, cpu_reg);
 		break;
 	case 0x8000:
-		// another switch case here - check lowest 4-bits
+		// check lowest 4-bits
 		switch(opcode & 0x000F) {
 		case 0x0000:
 			LD_VX_VY(opcode, cpu_reg);
@@ -105,7 +128,7 @@ void fde_cycle(Chip8 * cpu_reg) {
 		DRW_VX_VY_nibble(opcode, cpu_reg);
 		break;
 	case 0xE000:
-		// another switch case here - check lowest 8-bits
+		// check lowest 8-bits
 		switch(opcode & 0x00FF) {
 		case 0x009E:
 			SKP_VX(opcode, cpu_reg);
@@ -119,7 +142,7 @@ void fde_cycle(Chip8 * cpu_reg) {
 		}
 		break;
 	case 0xF000:
-		// another switch case here - check lowest 8-bits
+		// check lowest 8-bits
 		switch (opcode & 0x00FF) {
 		case 0x0007:
 			LD_VX_DT(opcode, cpu_reg);
@@ -158,6 +181,13 @@ void fde_cycle(Chip8 * cpu_reg) {
 		break;
 	}
 
+	// Decrement the timers
+	if (delay_timer > 0)
+		delay_timer--;
+	if (sound_timer > 0) {
+		// Make beeping sound
+		sound_timer--;
+	}
 }
 
 
@@ -175,6 +205,34 @@ void initialize_cpu(Chip8 * cpu_reg) {
 	for (int i=0; i<16; ++i)
 		cpu_reg->V[i] = 0;
 }
+
+
+void debugger(Chip8* cpu_reg, uint16_t opcode) {
+	printf("opcode = %02X\n", opcode);
+	printf("V[0] = %d\n", cpu_reg->V[0]);
+	printf("V[1] = %d\n", cpu_reg->V[1]);
+	printf("V[2] = %d\n", cpu_reg->V[2]);
+	printf("V[3] = %d\n", cpu_reg->V[3]);
+	printf("V[4] = %d\n", cpu_reg->V[4]);
+	printf("V[5] = %d\n", cpu_reg->V[5]);
+	printf("V[6] = %d\n", cpu_reg->V[6]);
+	printf("V[7] = %d\n", cpu_reg->V[7]);
+	printf("V[8] = %d\n", cpu_reg->V[8]);
+	printf("V[9] = %d\n", cpu_reg->V[9]);
+	printf("V[10] = %d\n", cpu_reg->V[10]);
+	printf("V[11] = %d\n", cpu_reg->V[11]);
+	printf("V[12] = %d\n", cpu_reg->V[12]);
+	printf("V[13] = %d\n", cpu_reg->V[13]);
+	printf("V[14] = %d\n", cpu_reg->V[14]);
+	printf("V[15] = %d\n", cpu_reg->V[15]);
+
+	printf("pc = %d\n", cpu_reg->pc);
+	printf("sp = %d\n", cpu_reg->sp);
+	printf("I = %d\n", cpu_reg->I);
+
+	getchar();
+}
+
 
 
 
@@ -196,7 +254,8 @@ void SYS_addr(uint16_t opcode, Chip8 * cpu_reg) {
  *  0x00E0 - Clear the display
  */
 void CLS(uint16_t opcode, Chip8 * cpu_reg) {
-	// clear the display
+	// reset all array values to 0
+	memset(video_buffer, 0, sizeof(video_buffer));
 	cpu_reg->pc += 2;
 }
 
@@ -470,7 +529,11 @@ void DRW_VX_VY_nibble(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xEX9E - Skip next instruction if key with the value of VX is pressed
  */
 void SKP_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// key if key pressed is same as VX
+	int X = (opcode & 0x0F00) >> 8;
+
+	if (keys[cpu_reg->V[X]] == 1)
+		cpu_reg->pc += 2;
+	
 	cpu_reg->pc += 2;
 }
 
@@ -479,7 +542,11 @@ void SKP_VX(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xEXA1 - Skip next instruction if key with the value of VX is not pressed
  */
 void SKNP_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// key if key not pressed is same as VX
+	int X = (opcode & 0x0F00) >> 8;
+
+	if (keys[cpu_reg->V[X]] == 0)
+		cpu_reg->pc += 2;
+
 	cpu_reg->pc += 2;
 }
 
@@ -498,8 +565,15 @@ void LD_VX_DT(uint16_t opcode, Chip8 * cpu_reg) {
  * 0xFX0A - Wait for a key press, store the value of the key in VX
  */
 void LD_VX_K(uint16_t opcode, Chip8 * cpu_reg) {
-	// loop while waiting for key press, then continue
-	cpu_reg->pc += 2;
+	int X = (opcode & 0x0F00) >> 8;
+
+	for (int i=0; i<16; ++i) {
+		if (keys[i] == 1) {
+			cpu_reg->V[X] = i;
+			cpu_reg->pc += 2;  // increment pc if key pressed; cpu will return here if not
+			break;
+		}
+	}
 }
 
 
@@ -547,26 +621,40 @@ void LD_F_VX(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xFX33 - Store the BCD representation of VX in mem. locations I, I+1, and I+2
  */
 void LD_B_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// take decimal value of VX and store its hundreds digit at mem. loc. I,
+	// take decimal value of V[X] and store its hundreds digit at mem. loc. I,
 	// its tens digit at I+1, and its ones digit at I+2
+	int X = (opcode & 0x0F00) >> 8;
+
+	memory[cpu_reg->I] = cpu_reg->V[X] / 100;
+	memory[cpu_reg->I+1] = (cpu_reg->V[X] % 100) / 10;
+	memory[cpu_reg->I+2] = cpu_reg->V[X] % 10;
+
 	cpu_reg->pc += 2;
 }
 
 
 /*
- *  0xFX55 - Store registers v0 through VX in memory starting at location I
+ *  0xFX55 - Store registers V0 through VX in memory starting at location I
  */
 void LD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// copy values V0-VX into memory starting at location I
+	int X = (opcode & 0x0F00) >> 8;
+
+	for (int k=0; k <= X; ++k)
+		memory[cpu_reg->I + k] = cpu_reg->V[k];
+
 	cpu_reg->pc += 2;
 }
 
 
 /*
- *  0xFX65 - Read registers V0 through VX from memory starting at location I
+ *  0xFX65 - Read into registers V0 through VX from memory starting at location I
  */
 void LD_VX_I(uint16_t opcode, Chip8 * cpu_reg) {
-	// read values from memory starting at location I into V0-VX
+	int X = (opcode & 0x0F00) >> 8;
+
+	for (int k=0; k <= X; ++k)
+		cpu_reg->V[k] = memory[cpu_reg->I + k];
+
 	cpu_reg->pc += 2;
 }
 

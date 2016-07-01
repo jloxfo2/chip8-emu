@@ -3,7 +3,11 @@
 #include "emulator.h"
 
 
-uint8_t memory[4096];   // CHIP-8 has 4KB of RAM
+uint8_t memory[4096];
+uint8_t video_buffer[WIDTH * HEIGHT];
+uint16_t delay_timer;   // Used for timeing of game events
+uint16_t sound_timer;   // Used for sound effects; beeps when nonzero
+uint8_t keys[16];  // key states for hex keypad
 
 
 int main() {
@@ -14,10 +18,9 @@ int main() {
 	if (load_program("Tetris.ch8", memory + PROGRAM_START) == -1)
 		exit(1);   // if file fails to open, terminate program
 	
-	/*while (1) {
+	while (1) {
 		fde_cycle(&cpu_reg);
 	}
-*/
 }
 
 

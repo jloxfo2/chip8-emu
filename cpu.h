@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
 #include "time.h"
 
 
@@ -15,6 +16,8 @@
 
 
 extern uint8_t memory[4096];   // CHIP-8 has 4KB of RAM
+extern uint8_t video_buffer[WIDTH * HEIGHT];  // video memory buffer to be drawn to screen
+extern uint8_t keys[16];  // holds CHIP-8's 16 key states; value is 1 when key is pressed, 0 when released
 
 
 /*
@@ -32,6 +35,8 @@ typedef struct registers {
 
 void fde_cycle(Chip8 * cpu_reg);
 void initialize_cpu(Chip8 * cpu_reg);
+
+void debugger(Chip8* cpu_reg, uint16_t opcode);
 
 
 /****************************************************************/
