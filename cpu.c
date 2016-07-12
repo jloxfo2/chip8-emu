@@ -39,7 +39,9 @@ static uint8_t fonts[80] = {
 void fde_cycle(Chip8 * cpu_reg) {
 	// Fetch
 	uint16_t opcode = (memory[cpu_reg->pc] << 8) | memory[cpu_reg->pc+1];  // read 2 consecutive bytes
-	debugger(cpu_reg, opcode);
+	
+	// debugger(cpu_reg, opcode);
+	
 	// Decode the opcode and execute it by calling its function
 	switch(opcode & 0xF000) {
 	case 0x0000:
@@ -202,8 +204,19 @@ void initialize_cpu(Chip8 * cpu_reg) {
 	cpu_reg->sp = 0;
 	cpu_reg->I = 0;
 
-	for (int i=0; i<16; ++i)
-		cpu_reg->V[i] = 0;
+	sound_timer = 0;
+	delay_timer = 0;
+
+	// initialize all memory/registers to 0
+	memset(cpu_reg->V, 0, sizeof(cpu_reg->V));
+	memset(stack, 0, sizeof(stack));
+	memset(video_buffer, 0, sizeof(video_buffer));
+	memset(memory, 0, sizeof(memory));
+
+	// load sprite fonts into memory
+	for (int i=0; i<80; ++i) {
+		memory[i] = fonts[i];
+	}
 }
 
 
@@ -230,7 +243,7 @@ void debugger(Chip8* cpu_reg, uint16_t opcode) {
 	printf("sp = %d\n", cpu_reg->sp);
 	printf("I = %d\n", cpu_reg->I);
 
-	getchar();
+	getchar();  // Wait for user input before continuing
 }
 
 
@@ -520,7 +533,33 @@ void RND_VX_byte(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xDXYN - Display N-byte sprite starting at memory location I at (VX,VY), set VF = collison
  */
 void DRW_VX_VY_nibble(uint16_t opcode, Chip8 * cpu_reg) {
-	// draw sprites
+	uint32_t X = (opcode & 0x0F00) >> 8;
+	uint32_t Y = (opcode & 0x00F0) >> 4;
+	uint32_t N = (opcode & 0x000F);
+	cpu_reg->V[0xF] = 0;  // clear collision flag
+
+	// (x, y) position
+	uint32_t x = cpu_reg->V[X];
+	uint32_t y = cpu_reg->V[Y];
+
+	for (int yVal=0; yVal < N; ++yVal) {
+		uint8_t sprite_byte = memory[cpu_reg->I + yVal];
+
+		for (int xVal=0; xVal < 8; ++xVal) {
+			if (sprite_byte & (0x01 << xVal)) {
+				// if the current pixel is set, check it's value after XOR'ing it with its sprite font pixel
+				if (video_buffer[x + xVal + (y + yVal) * WIDTH] == 1)
+					// if the pixel is turned off, set collision flag
+					cpu_reg->V[0xF] = 1;
+				
+				video_buffer[x + xVal + (y + yVal) * WIDTH] ^= 1;
+			}
+			else {
+				video_buffer[x + xVal + (y + yVal) * WIDTH] ^= 0;
+			}
+		}
+	}
+
 	cpu_reg->pc += 2;
 }
 
@@ -612,7 +651,8 @@ void ADD_I_VX(uint16_t opcode, Chip8 * cpu_reg) {
  *  0xFX29 - Set I = location of sprite for digit VX
  */
 void LD_F_VX(uint16_t opcode, Chip8 * cpu_reg) {
-	// the value I is set to the location for the hex sprite corresponding to val of VX
+	uint32_t X = (opcode & 0x0F00) >> 8;
+	cpu_reg->I = cpu_reg->V[X] * 5;  // multiplied by 5 because sprites are 5 bytes long
 	cpu_reg->pc += 2;
 }
 
